@@ -1,18 +1,58 @@
 #include "chibi.h"
 
+// Scope for struct tags
+typedef struct TagScope TagScope;
+struct TagScope {
+  TagScope *next;
+  char *name;
+  Type *ty;
+};
+
+typedef struct {
+  VarList *var_scope;
+  TagScope *tag_scope;
+} Scope;
+
 // All local variable instances created during parsing are
 // accumulated to this list.
 VarList *locals;
+
+// Likewise, global variables are accumulated to this list.
 VarList *globals;
-VarList *scope;
+
+// C has two block scopes; one is for variables and the other is
+// for struct tags.
+VarList *var_scope;
+TagScope *tag_scope;
+
+// Begin a block scope
+Scope *enter_scope() {
+  Scope *sc = calloc(1, sizeof(Scope));
+  sc->var_scope = var_scope;
+  sc->tag_scope = tag_scope;
+  return sc;
+}
+
+// End a block scope
+void leave_scope(Scope *sc) {
+  var_scope = sc->var_scope;
+  tag_scope = sc->tag_scope;
+}
 
 // Find a variable by name.
 Var *find_var(Token *tok) {
-  for (VarList *vl = scope; vl; vl = vl->next) {
+  for (VarList *vl = var_scope; vl; vl = vl->next) {
     Var *var = vl->var;
     if (strlen(var->name) == tok->len && !strncmp(tok->str, var->name, tok->len))
       return var;
   }
+  return NULL;
+}
+
+TagScope *find_tag(Token *tok) {
+  for (TagScope *sc = tag_scope; sc; sc = sc->next)
+    if (strlen(sc->name) == tok->len && !strncmp(tok->str, sc->name, tok->len))
+      return sc;
   return NULL;
 }
 
@@ -56,8 +96,8 @@ Var *new_var(char *name, Type *ty, bool is_local) {
 
   VarList *sc = calloc(1, sizeof(VarList));
   sc->var = var;
-  sc->next = scope;
-  scope = sc;
+  sc->next = var_scope;
+  var_scope = sc;
   return var;
 }
 
@@ -165,12 +205,31 @@ Type *read_type_suffix(Type *base) {
   return array_of(base, sz);
 }
 
-// struct-decl = "struct" "{" struct-member "}"
+void push_tag_scope(Token *tok, Type *ty) {
+  TagScope *sc = calloc(1, sizeof(TagScope));
+  sc->next = tag_scope;
+  sc->name = strndup(tok->str, tok->len);
+  sc->ty = ty;
+  tag_scope = sc;
+}
+
+// struct-decl = "struct" ident
+//             | "struct" ident? "{" struct-member "}"
 Type *struct_decl() {
-  // Read struct members.
   expect("struct");
+
+  // Read a struct tag.
+  Token *tag = consume_ident();
+  if (tag && !peek("{")) {
+    TagScope *sc = find_tag(tag);
+    if (!sc)
+      error_tok(tag, "unknown struct type");
+    return sc->ty;
+  }
+
   expect("{");
 
+  // Read struct members.
   Member head = {};
   Member *cur = &head;
 
@@ -195,6 +254,9 @@ Type *struct_decl() {
   }
   ty->size = align_to(offset, ty->align);
 
+  // Register the struct type if a name was given.
+  if (tag)
+    push_tag_scope(tag, ty);
   return ty;
 }
 
@@ -245,7 +307,7 @@ Function *function() {
   fn->name = expect_ident();
   expect("(");
 
-  VarList *sc = scope;
+  Scope *sc = enter_scope();
   fn->params = read_func_params();
   expect("{");
 
@@ -255,7 +317,7 @@ Function *function() {
     cur->next = stmt();
     cur = cur->next;
   }
-  scope = sc;
+  leave_scope(sc);
 
   fn->node = head.next;
   fn->locals = locals;
@@ -272,9 +334,13 @@ void global_var() {
 }
 
 // declaration = basetype ident ("[" num "]")* ("=" expr) ";"
+//             | basetype ";"
 Node *declaration() {
   Token *tok = token;
   Type *ty = basetype();
+  if (consume(";"))
+    return new_node(ND_NULL, tok);
+
   char *name = expect_ident();
   ty = read_type_suffix(ty);
   Var *var = new_lvar(name, ty);
@@ -364,12 +430,12 @@ Node *stmt2() {
     Node head = {};
     Node *cur = &head;
 
-    VarList *sc = scope;
+    Scope *sc = enter_scope();
     while (!consume("}")) {
       cur->next = stmt();
       cur = cur->next;
     }
-    scope = sc;
+    leave_scope(sc);
 
     Node *node = new_node(ND_BLOCK, tok);
     node->body = head.next;
@@ -552,8 +618,7 @@ Node *postfix() {
 //
 // Statement expression is a GNU C extension.
 Node *stmt_expr(Token *tok) {
-  VarList *sc = scope;
-
+  Scope *sc = enter_scope();
   Node *node = new_node(ND_STMT_EXPR, tok);
   node->body = stmt();
   Node *cur = node->body;
@@ -563,8 +628,7 @@ Node *stmt_expr(Token *tok) {
     cur = cur->next;
   }
   expect(")");
-
-  scope = sc;
+  leave_scope(sc);
 
   if (cur->kind != ND_EXPR_STMT)
     error_tok(cur->tok, "stmt expr returning void is not supported");
