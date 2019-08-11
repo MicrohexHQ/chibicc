@@ -222,6 +222,8 @@ void gen(Node *node) {
     printf("  add rsp, 8\n");
     printf(".L.end.%d:\n", seq);
     printf("  push rax\n");
+
+    truncate(node->ty);
     return;
   }
   case ND_RETURN:
