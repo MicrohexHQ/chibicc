@@ -176,6 +176,8 @@ Node *stmt();
 Node *stmt2();
 Node *expr();
 Node *assign();
+Node *logor();
+Node *logand();
 Node *bitand();
 Node *bitor();
 Node *bitxor();
@@ -745,10 +747,10 @@ Node *expr() {
   return node;
 }
 
-// assign    = bitor (assign-op assign)?
+// assign    = logor (assign-op assign)?
 // assign-op = "=" | "+=" | "-=" | "*=" | "/="
 Node *assign() {
-  Node *node = bitor();
+  Node *node = logor();
   Token *tok;
 
   if (tok = consume("="))
@@ -776,6 +778,24 @@ Node *assign() {
       return new_binary(ND_SUB_EQ, node, assign(), tok);
   }
 
+  return node;
+}
+
+// logor = logand ("||" logand)*
+Node *logor() {
+  Node *node = logand();
+  Token *tok;
+  while (tok = consume("||"))
+    node = new_binary(ND_LOGOR, node, logand(), tok);
+  return node;
+}
+
+// logand = bitor ("&&" bitor)*
+Node *logand() {
+  Node *node = bitor();
+  Token *tok;
+  while (tok = consume("&&"))
+    node = new_binary(ND_LOGAND, node, bitor(), tok);
   return node;
 }
 
