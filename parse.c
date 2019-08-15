@@ -41,6 +41,10 @@ VarScope *var_scope;
 TagScope *tag_scope;
 int scope_depth;
 
+// Points to a node representing a switch if we are parsing
+// a switch statement. Otherwise, NULL.
+Node *current_switch;
+
 // Begin a block scope
 Scope *enter_scope() {
   Scope *sc = calloc(1, sizeof(Scope));
@@ -714,6 +718,9 @@ Node *stmt() {
 
 // stmt2 = "return" expr ";"
 //       | "if" "(" expr ")" stmt ("else" stmt)?
+//       | "switch" "(" expr ")" stmt
+//       | "case" num ":" stmt
+//       | "default" ":" stmt
 //       | "while" "(" expr ")" stmt
 //       | "for" "(" (expr? ";" | declaration) expr? ";" expr? ")" stmt
 //       | "{" stmt* "}"
@@ -739,6 +746,42 @@ Node *stmt2() {
     node->then = stmt();
     if (consume("else"))
       node->els = stmt();
+    return node;
+  }
+
+  if (tok = consume("switch")) {
+    Node *node = new_node(ND_SWITCH, tok);
+    expect("(");
+    node->cond = expr();
+    expect(")");
+
+    Node *sw = current_switch;
+    current_switch = node;
+    node->then = stmt();
+    current_switch = sw;
+    return node;
+  }
+
+  if (tok = consume("case")) {
+    if (!current_switch)
+      error_tok(tok, "stray case");
+    int val = expect_number();
+    expect(":");
+
+    Node *node = new_unary(ND_CASE, stmt(), tok);
+    node->val = val;
+    node->case_next = current_switch->case_next;
+    current_switch->case_next = node;
+    return node;
+  }
+
+  if (tok = consume("default")) {
+    if (!current_switch)
+      error_tok(tok, "stray default");
+    expect(":");
+
+    Node *node = new_unary(ND_CASE, stmt(), tok);
+    current_switch->default_case = node;
     return node;
   }
 
