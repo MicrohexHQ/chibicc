@@ -185,6 +185,7 @@ bool is_typename();
 Node *stmt();
 Node *stmt2();
 Node *expr();
+long eval(Node *node);
 long const_expr();
 Node *assign();
 Node *conditional();
@@ -658,6 +659,53 @@ Function *function() {
 }
 
 // global-var = basetype declarator type-suffix ";"
+Initializer *new_init_val(Initializer *cur, int sz, int val) {
+  Initializer *init = calloc(1, sizeof(Initializer));
+  init->sz = sz;
+  init->val = val;
+  cur->next = init;
+  return init;
+}
+
+Initializer *new_init_label(Initializer *cur, char *label) {
+  Initializer *init = calloc(1, sizeof(Initializer));
+  init->label = label;
+  cur->next = init;
+  return init;
+}
+
+Initializer *gvar_init_string(char *p, int len) {
+  Initializer head = {};
+  Initializer *cur = &head;
+  for (int i = 0; i < len; i++)
+    cur = new_init_val(cur, 1, p[i]);
+  return head.next;
+}
+
+// gvar-initializer2 = assign
+Initializer *gvar_initializer2(Initializer *cur, Type *ty) {
+  Token *tok = token;
+  Node *expr = conditional();
+
+  if (expr->kind == ND_ADDR) {
+    if (expr->lhs->kind != ND_VAR)
+      error_tok(tok, "invalid initializer");
+    return new_init_label(cur, expr->lhs->var->name);
+  }
+
+  if (expr->kind == ND_VAR && expr->var->ty->kind == TY_ARRAY)
+    return new_init_label(cur, expr->var->name);
+
+  return new_init_val(cur, ty->size, eval(expr));
+}
+
+Initializer *gvar_initializer(Type *ty) {
+  Initializer head = {};
+  gvar_initializer2(&head, ty);
+  return head.next;
+}
+
+// global-var = basetype declarator type-suffix ("=" gvar-initializer)? ";"
 void global_var() {
   StorageClass sclass;
   Type *ty = basetype(&sclass);
@@ -665,18 +713,24 @@ void global_var() {
   Token *tok = token;
   ty = declarator(ty, &name);
   ty = type_suffix(ty);
-  expect(";");
-
-  if (ty->is_incomplete)
-    error_tok(tok, "incomplete type");
 
   if (sclass == TYPEDEF) {
+    expect(";");
     push_scope(name)->type_def = ty;
-  } else {
+    return;
+  }
+
+  Var *var = new_gvar(name, ty, true);
+
+  if (!consume("=")) {
     if (ty->is_incomplete)
       error_tok(tok, "incomplete type");
-    new_gvar(name, ty, true);
+    expect(";");
+    return;
   }
+
+  var->initializer = gvar_initializer(ty);
+  expect(";");
 }
 
 typedef struct Designator Designator;
@@ -1539,8 +1593,7 @@ Node *primary() {
 
     Type *ty = array_of(char_type, tok->cont_len);
     Var *var = new_gvar(new_label(), ty, true);
-    var->contents = tok->contents;
-    var->cont_len = tok->cont_len;
+    var->initializer = gvar_init_string(tok->contents, tok->cont_len);
     return new_var_node(var, tok);
   }
 
