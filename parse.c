@@ -168,6 +168,7 @@ char *new_label() {
 typedef enum {
   TYPEDEF = 1 << 0,
   STATIC  = 1 << 1,
+  EXTERN  = 1 << 2,
 } StorageClass;
 
 Function *function();
@@ -277,7 +278,7 @@ Type *basetype(StorageClass *sclass) {
     Token *tok = token;
 
     // Handle storage class specifiers.
-    if (peek("typedef") || peek("static")) {
+    if (peek("typedef") || peek("static") || peek("extern")) {
       if (!sclass)
         error_tok(tok, "storage class specifier is not allowed");
 
@@ -285,9 +286,11 @@ Type *basetype(StorageClass *sclass) {
         *sclass |= TYPEDEF;
       else if (consume("static"))
         *sclass |= STATIC;
+      else if (consume("extern"))
+        *sclass |= EXTERN;
 
       if (*sclass & (*sclass - 1))
-        error_tok(tok, "typedef and static may not be used together");
+        error_tok(tok, "typedef, static and extern may not be used together");
       continue;
     }
 
@@ -850,16 +853,21 @@ void global_var() {
     return;
   }
 
-  Var *var = new_gvar(name, ty, true);
+  Var *var = new_gvar(name, ty, sclass != EXTERN);
 
-  if (!consume("=")) {
-    if (ty->is_incomplete)
-      error_tok(tok, "incomplete type");
+  if (sclass == EXTERN) {
     expect(";");
     return;
   }
 
-  var->initializer = gvar_initializer(ty);
+  if (consume("=")) {
+    var->initializer = gvar_initializer(ty);
+    expect(";");
+    return;
+  }
+
+  if (ty->is_incomplete)
+    error_tok(tok, "incomplete type");
   expect(";");
 }
 
@@ -1082,7 +1090,8 @@ Node *read_expr_stmt() {
 bool is_typename() {
   return peek("void") || peek("_Bool") || peek("char") || peek("short") ||
          peek("int") || peek("long") || peek("enum") || peek("struct") ||
-         peek("typedef") || peek("static") || find_typedef(token);
+         peek("typedef") || peek("static") || peek("extern") ||
+         find_typedef(token);
 }
 
 Node *stmt() {
