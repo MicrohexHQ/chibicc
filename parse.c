@@ -1118,6 +1118,7 @@ Node *stmt() {
 //       | "break" ";"
 //       | "continue" ";"
 //       | "goto" ident ";"
+//       | ";"
 //       | ident ":" stmt
 //       | declaration
 //       | expr ";"
@@ -1244,6 +1245,9 @@ Node *stmt2() {
     expect(";");
     return node;
   }
+
+  if (tok = consume(";"))
+    return new_node(ND_NULL, tok);
 
   if (tok = consume_ident()) {
     if (consume(":")) {
