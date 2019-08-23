@@ -205,6 +205,7 @@ Node *mul();
 Node *cast();
 Node *unary();
 Node *postfix();
+Node *compound_literal();
 Node *primary();
 
 // Determine whether the next top-level item is a function
@@ -1580,10 +1581,12 @@ Node *cast() {
     if (is_typename()) {
       Type *ty = type_name();
       expect(")");
-      Node *node = new_unary(ND_CAST, cast(), tok);
-      add_type(node->lhs);
-      node->ty = ty;
-      return node;
+      if (!consume("{")) {
+        Node *node = new_unary(ND_CAST, cast(), tok);
+        add_type(node->lhs);
+        node->ty = ty;
+        return node;
+      }
     }
     token = tok;
   }
@@ -1637,10 +1640,16 @@ Node *struct_ref(Node *lhs) {
   return node;
 }
 
-// postfix = primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
+// postfix = compound-literal
+//         | primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
 Node *postfix() {
-  Node *node = primary();
   Token *tok;
+
+  Node *node = compound_literal();
+  if (node)
+    return node;
+
+  node = primary();
 
   for (;;) {
     if (tok = consume("[")) {
@@ -1675,6 +1684,34 @@ Node *postfix() {
 
     return node;
   }
+}
+
+// compound-literal = "(" type-name ")" "{" (gvar-initializer | lvar-initializer) "}"
+Node *compound_literal() {
+  Token *tok = token;
+  if (!consume("(") || !is_typename()) {
+    token = tok;
+    return NULL;
+  }
+
+  Type *ty = type_name();
+  expect(")");
+
+  if (!peek("{")) {
+    token = tok;
+    return NULL;
+  }
+
+  if (scope_depth == 0) {
+    Var *var = new_gvar(new_label(), ty, true);
+    var->initializer = gvar_initializer(ty);
+    return new_var_node(var, tok);
+  }
+
+  Var *var = new_lvar(new_label(), ty);
+  Node *node = new_var_node(var, tok);
+  node->init = lvar_initializer(var, tok);
+  return node;
 }
 
 // stmt-expr = "(" "{" stmt stmt* "}" ")"
