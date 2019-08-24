@@ -1374,6 +1374,7 @@ long const_expr() {
 
 // assign    = conditional (assign-op assign)?
 // assign-op = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
+//           | "&=" | "|=" | "^="
 Node *assign() {
   Node *node = conditional();
   Token *tok;
@@ -1392,6 +1393,15 @@ Node *assign() {
 
   if (tok = consume(">>="))
     return new_binary(ND_SHR_EQ, node, assign(), tok);
+
+  if (tok = consume("&="))
+    return new_binary(ND_BITAND_EQ, node, assign(), tok);
+
+  if (tok = consume("|="))
+    return new_binary(ND_BITOR_EQ, node, assign(), tok);
+
+  if (tok = consume("^="))
+    return new_binary(ND_BITXOR_EQ, node, assign(), tok);
 
   if (tok = consume("+=")) {
     add_type(node);
