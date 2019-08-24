@@ -527,6 +527,10 @@ void gen(Node *node) {
 }
 
 void emit_data(Program *prog) {
+  for (VarList *vl = prog->globals; vl; vl = vl->next)
+    if (!vl->var->is_static)
+      printf(".global %s\n", vl->var->name);
+
   printf(".bss\n");
 
   for (VarList *vl = prog->globals; vl; vl = vl->next) {
