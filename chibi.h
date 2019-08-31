@@ -235,9 +235,13 @@ typedef enum {
   TY_VOID,
   TY_BOOL,
   TY_CHAR,
+  TY_UCHAR,
   TY_SHORT,
+  TY_USHORT,
   TY_INT,
+  TY_UINT,
   TY_LONG,
+  TY_ULONG,
   TY_ENUM,
   TY_PTR,
   TY_ARRAY,
@@ -249,6 +253,7 @@ struct Type {
   TypeKind kind;
   int size;           // sizeof() value
   int align;          // alignment
+  bool is_signed;
   bool is_incomplete; // incomplete type
 
   Type *base;         // pointer or array
@@ -269,9 +274,13 @@ struct Member {
 extern Type *void_type;
 extern Type *bool_type;
 extern Type *char_type;
+extern Type *uchar_type;
 extern Type *short_type;
+extern Type *ushort_type;
 extern Type *int_type;
+extern Type *uint_type;
 extern Type *long_type;
+extern Type *ulong_type;
 
 bool is_integer(Type *ty);
 int align_to(int n, int align);

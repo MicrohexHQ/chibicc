@@ -52,11 +52,20 @@ void load(Type *ty) {
   printf("  pop rax\n");
 
   if (ty->size == 1) {
-    printf("  movsx rax, byte ptr [rax]\n");
+    if (ty->is_signed)
+      printf("  movsx rax, byte ptr [rax]\n");
+    else
+      printf("  movzx rax, byte ptr [rax]\n");
   } else if (ty->size == 2) {
-    printf("  movsx rax, word ptr [rax]\n");
+    if (ty->is_signed)
+      printf("  movsx rax, word ptr [rax]\n");
+    else
+      printf("  movzx rax, word ptr [rax]\n");
   } else if (ty->size == 4) {
-    printf("  movsxd rax, dword ptr [rax]\n");
+    if (ty->is_signed)
+      printf("  movsxd rax, dword ptr [rax]\n");
+    else
+      printf("  mov eax, dword ptr [rax]\n");
   } else {
     assert(ty->size == 8);
     printf("  mov rax, [rax]\n");
@@ -150,12 +159,20 @@ void gen_binary(Node *node) {
     break;
   case ND_MUL:
   case ND_MUL_EQ:
-    printf("  imul rax, rdi\n");
+    if (node->ty->is_signed)
+      printf("  imul rax, rdi\n");
+    else
+      printf("  mul rdi\n");
     break;
   case ND_DIV:
   case ND_DIV_EQ:
-    printf("  cqo\n");
-    printf("  idiv rdi\n");
+    if (node->ty->is_signed) {
+      printf("  cqo\n");
+      printf("  idiv rdi\n");
+    } else {
+      printf("  mov rdx, 0\n");
+      printf("  div rdi\n");
+    }
     break;
   case ND_BITAND:
   case ND_BITAND_EQ:
@@ -177,7 +194,10 @@ void gen_binary(Node *node) {
   case ND_SHR:
   case ND_SHR_EQ:
     printf("  mov cl, dil\n");
-    printf("  sar rax, cl\n");
+    if (node->ty->is_signed)
+      printf("  sar rax, cl\n");
+    else
+      printf("  shr rax, cl\n");
     break;
   case ND_EQ:
     printf("  cmp rax, rdi\n");

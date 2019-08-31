@@ -736,6 +736,23 @@ int main() {
   assert(8, sizeof(signed long long), "sizeof(signed long long)");
   assert(8, sizeof(signed long long int), "sizeof(signed long long int)");
 
+  assert(-1, (long)-1 >> 62, "(long)-1 >> 62");
+  assert(3, (unsigned long)-1 >> 62, "(unsigned long)-1 >> 62");
+  assert(-1, ({ long x=-1; x >>= 62; x; }), "long x=-1; x >>= 62; x; ");
+  assert(3, ({ unsigned long x=-1; x >>= 62; x; }), "unsigned long x=-1; x >>= 62; x; ");
+
+  assert(12, (unsigned long)3 * 4, "(unsigned long)3 * 4");
+  assert(12, ({ unsigned long x=3; x*=4; x; }), "unsigned long x=3; x*=4; x;");
+
+  assert(0, (long)-1 / ((long)1 << 60), "(long)-1 / ((long)1 << 60)");
+  assert(15, (unsigned long)-1 / ((unsigned long)1 << 60), "(unsigned long)-1 / ((unsigned long)1 << 60)");
+  assert(0, ({ long x=-1; x /= (long)1 << 60; x; }), "long x=-1; x /= (long)1 << 60; x; ");
+  assert(15, ({ unsigned long x=-1; x /= (unsigned long)1 << 60; x; }), "unsigned long x=-1; x /= (unsigned long)1 << 60; x;");
+
+  assert(255, ({ unsigned char x=255; x; }), "unsigned char x=255; x;");
+  assert(65535, ({ unsigned short x=65535; x; }), "unsigned short x=65535; x;");
+  assert(4294967295, ({ unsigned int x=4294967295; x; }), "unsigned int x=4294967295; x;");
+
   printf("OK\n");
   return 0;
 }

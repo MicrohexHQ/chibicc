@@ -1,16 +1,21 @@
 #include "chibi.h"
 
-Type *void_type  = &(Type){ TY_VOID, 1, 1 };
-Type *bool_type  = &(Type){ TY_BOOL, 1, 1 };
-Type *char_type  = &(Type){ TY_CHAR, 1, 1 };
-Type *short_type = &(Type){ TY_SHORT, 2, 2 };
-Type *int_type   = &(Type){ TY_INT, 4, 4 };
-Type *long_type  = &(Type){ TY_LONG, 8, 8 };
+Type *void_type   = &(Type){ TY_VOID,   1, 1, false };
+Type *bool_type   = &(Type){ TY_BOOL,   1, 1, false };
+Type *char_type   = &(Type){ TY_CHAR,   1, 1, true };
+Type *uchar_type  = &(Type){ TY_UCHAR,  1, 1, false };
+Type *short_type  = &(Type){ TY_SHORT,  2, 2, true };
+Type *ushort_type = &(Type){ TY_USHORT, 2, 2, false };
+Type *int_type    = &(Type){ TY_INT,    4, 4, true };
+Type *uint_type   = &(Type){ TY_UINT,   4, 4, false };
+Type *long_type   = &(Type){ TY_LONG,   8, 8, true };
+Type *ulong_type  = &(Type){ TY_ULONG,  8, 8, false };
 
 bool is_integer(Type *ty) {
   TypeKind k = ty->kind;
-  return k == TY_BOOL || k == TY_CHAR || k == TY_SHORT ||
-         k == TY_INT  ||k == TY_LONG;
+  return k == TY_BOOL  || k == TY_CHAR   || k == TY_UCHAR ||
+         k == TY_SHORT || k == TY_USHORT || k == TY_INT   ||
+         k == TY_UINT  || k == TY_LONG   || k == TY_ULONG;
 }
 
 int align_to(int n, int align) {
@@ -74,12 +79,19 @@ void add_type(Node *node) {
   switch (node->kind) {
   case ND_ADD:
   case ND_SUB:
-  case ND_PTR_DIFF:
   case ND_MUL:
   case ND_DIV:
   case ND_BITAND:
   case ND_BITOR:
   case ND_BITXOR:
+    if (!node->lhs->ty->is_signed || !node->rhs->ty->is_signed)
+      node->ty = ulong_type;
+    else
+      node->ty = long_type;
+    return;
+  case ND_PTR_DIFF:
+    node->ty = ulong_type;
+    return;
   case ND_EQ:
   case ND_NE:
   case ND_LT:
